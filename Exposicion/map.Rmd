@@ -1,0 +1,94 @@
+---
+title: "Untitled"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+# Packages
+library(tidyverse)
+library(raster)
+library(sf)
+library(highcharter)
+library(leaflet)
+library(htmltools)
+
+```
+
+
+
+
+# MAIN MAP --------------------------------------------------------------------------------
+output$map <- renderLeaflet({
+
+  # Base map
+  leaflet() %>%
+    addTiles(group = "OpenStreetMap") %>%
+    clearShapes() %>%
+    addPolygons(data = adm1, 
+                smoothFactor = 0, 
+                color = "black",
+                opacity = 1,
+                fillColor = "transparent",
+                weight = 0.5,
+                stroke = TRUE,
+                label = ~htmlEscape(NAME_1),
+                layerId = ~NAME_1,
+                )
+  
+})
+leafletOutput('map')  
+
+
+# REGION SELECTION -----------------------------------------------------------------------
+
+# Click event for the map to draw chart
+click_poly <- eventReactive(input$map_shape_click, {
+
+  x <- input$map_shape_click
+  y <- x$id
+  return(y)
+}, ignoreNULL = TRUE) 
+
+
+observe({
+  req(click_poly()) # do this if click_poly() is not null
+
+  # Add the clicked poly and remove when a new one is clicked
+  map <- leafletProxy('map') %>%
+      removeShape('NAME_1') %>%
+      addPolygons(data = adm1[adm1$NAME_1 == click_poly(), ],
+                  fill = FALSE,
+                  weight = 4,
+                  color = '#d01010', 
+                  opacity = 1, 
+                  layerId = 'NAME_1')
+  })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

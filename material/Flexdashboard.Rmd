@@ -1,0 +1,309 @@
+---
+title: "Flexdashboard UNMSM"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(tm)
+library(wordcloud)
+library(readr)
+```
+
+```{r datasets}
+videos <- read_csv("C:/Users/diego/Desktop/Progra/flex/material/academatica_videos.csv")
+metadata <- read_csv("C:/Users/diego/Desktop/Progra/flex/material/academatica_videos_metadata.csv")
+stats <- read_csv("C:/Users/diego/Desktop/Progra/flex/material/academatica_video_stats.csv")
+```
+
+```{r kpis}
+metricas <- stats %>% 
+  summarise(total_views = sum(viewCount),
+            total_likes = sum(likeCount),
+            total_dislike = sum(dislikeCount),
+            total_favorite = sum(favoriteCount),
+            total_comments = sum(commentCount))
+```
+
+# metricas {data-icon=fa-ruler}
+##
+### Reproducciones
+
+```{r}
+valueBox(formattable::comma(metricas$total_views,digits=0),icon = 'fa-eye',color = "success")
+```
+
+### Likes
+
+```{r}
+valueBox(formattable::comma(metricas$total_likes,digits=0),icon = 'fa-thumbs-up',color = "warning")
+```
+
+### Comentarios
+
+```{r}
+valueBox(formattable::comma(metricas$total_comments,digits=0),icon = 'fa-comment',color = "danger")
+```
+
+##
+### Porcentaje de likes
+
+```{r}
+likes_rate <- metricas$total_likes/(metricas$total_likes+metricas$total_dislike)
+likes_rate <- round(likes_rate*100,0)
+gauge(likes_rate, min = 0, max= 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+### Porcentaje de dislikes
+
+```{r}
+dislikes_rate <- metricas$total_dislike/(metricas$total_likes+metricas$total_dislike)
+dislikes_rate <- round(dislikes_rate*100,0)
+gauge(dislikes_rate, min = 0, max= 100, symbol = '%', gaugeSectors(
+  success = c(80, 100), warning = c(40, 79), danger = c(0, 39)
+))
+```
+
+
+##
+### Total videos subidos por año y mes
+
+```{r}
+videos %>% 
+  mutate(year = year(ymd_hms(contentDetails.videoPublishedAt)),
+         month = month(ymd_hms(contentDetails.videoPublishedAt),label = TRUE),
+         year = as.factor(year)) %>% 
+  group_by(year, month) %>% 
+  summarise(uploaded_videos = n_distinct(id)) %>%
+  ggplot(aes(x=month,
+             y=uploaded_videos,
+             fill=year))+
+  geom_col(position = 'dodge')
+```
+
+# Data {data-icon="fa-database"}
+## {.tabset}
+### wordcloud
+```{r}
+docs <- Corpus(VectorSource(metadata$title))
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+docs <- tm_map(docs, toSpace, "-")
+docs <- tm_map(docs, toSpace, "\\(")
+docs <- tm_map(docs, toSpace, "\\)")
+docs <- tm_map(docs, toSpace, "\\|")
+
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeNumbers)
+docs <- tm_map(docs, removeWords, stopwords("spanish"))
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+docs <- tm_map(docs, removeWords, c("video", 
+                                    "problema",
+                                    "ejemplo",
+                                    "parte",
+                                    "ejercicio",
+                                    "ejercicios",
+                                    "ejemplos")) 
+docs <- tm_map(docs, removePunctuation)
+docs <- tm_map(docs, stripWhitespace)
+dtm <- TermDocumentMatrix(docs)
+m <- as.matrix(dtm)
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+set.seed(1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 1,
+          max.words=100, random.order=TRUE, rot.per=0.1, 
+          colors=brewer.pal(8, "Dark2"))
+```
+
+### table 
+```{r}
+stats %>% 
+  mutate(hasLike = if_else(likeCount>0,"si","no" )) %>% 
+  filter(hasLike == 'no') %>% 
+  left_join(metadata, by = c("id"="video_id")) %>% 
+  select(id,title) %>%
+  DT::datatable()
+```
+
+# statistics {data-icon="fa-chart-bar"}
+### Lung Deaths (All)
+
+```{r}
+library(plotly)
+
+mtcars$am[which(mtcars$am == 0)] <- 'Automatic'
+mtcars$am[which(mtcars$am == 1)] <- 'Manual'
+mtcars$am <- as.factor(mtcars$am)
+
+fig <- plot_ly(mtcars, x = ~wt, y = ~hp, z = ~qsec, color = ~am, colors = c('#BF382A', '#0C4B8E'))
+fig <- fig %>% add_markers()
+fig <- fig %>% layout(scene = list(xaxis = list(title = 'Weight'),
+                     yaxis = list(title = 'Gross horsepower'),
+                     zaxis = list(title = '1/4 mile time')))
+
+fig
+```
+
+### Lung Deaths (Male)
+
+```{r}
+library(plotly)
+# volcano is a numeric matrix that ships with R
+fig <- plot_ly(z = ~volcano)
+fig <- fig %>% add_surface()
+
+fig
+```
+# Lung Deaths {data-icon="fa-lungs"}
+### Lung Deaths (Female)
+
+```{r}
+library(plotly)
+library(rjson)
+
+df <- fromJSON(file="https://gist.githubusercontent.com/davenquinn/988167471993bc2ece29/raw/f38d9cb3dd86e315e237fde5d65e185c39c931c2/data.json") 
+
+colors = c('#8dd3c7','#ffffb3','#bebada',
+          '#fb8072','#80b1d3','#fdb462',
+          '#b3de69','#fccde5','#d9d9d9',
+          '#bc80bd','#ccebc5','#ffed6f');
+
+fig <- plot_ly()
+
+for (i in 1:length(df)) {
+  l = c()
+  m = c()
+  n = c()
+
+  for (j in 1:length(df[[i]])) {
+    l[[j]] <- df[[i]][[j]]$clay
+    m[[j]] <- df[[i]][[j]]$sand
+    n[[j]] <- df[[i]][[j]]$silt
+  }
+
+ fig <- add_trace(
+    fig,
+    type = 'scatterternary',
+    a = l,
+    b = m,
+    c = n,
+    name = names(df[i]),
+    mode = 'lines',
+    line = list(
+      color='#444'
+    ),
+    fill = 'toself',
+    fillcolor = colors[i],
+    showlegend = F
+    )
+}
+
+fig <- layout(
+  fig,
+  title = "Simple Ternary Contour Plot in R",
+  ternary = list(
+    sum = 100,
+    aaxis = list(
+      title = "clay",
+      ticksuffix = "%",
+      min = 0.01,
+      linewidth = 2,
+      ticks = "outside"
+    ),
+    baxis = list(
+      title = "sand",
+      ticksuffix = "%",
+      min = 0.01,
+      linewidth = 2,
+      ticks = "outside"
+    ),
+    caxis = list(
+      title = "silt",
+      ticksuffix = "%",
+      min = 0.01,
+      linewidth = 2,
+      ticks = "outside"
+    )
+  )
+)
+
+fig
+```
+
+# Earthquakes {data-icon=fa-globe-americas}
+
+```{r librerias, include=FALSE}
+library(flexdashboard)
+library(readr)
+library(dplyr)
+library(leaflet)
+library(DT)
+library(crosstalk)
+```
+
+```{r dataset}
+earthquakedata <- read_csv("C:/Users/diego/Desktop/Progra/flex/material/Libro2.csv")
+```
+
+##
+###
+```{r}
+earthquakedata %>%
+  filter(yr== 1995) %>%
+  DT::datatable()
+```
+
+### Lugar de cada terremoto
+
+```{r}
+earthquakedata %>%
+  filter(yr== 1995) %>%
+  leaflet() %>% # Add default OpenStreetMap map tiles
+  addTiles() %>%
+  addMarkers(lng = ~lon,
+             lat = ~lat,
+             label = ~mag)
+```
+
+# Crosstalk
+
+```{r}
+eq <- SharedData$new (earthquakedata %>% filter(yr>= 2000))
+```
+
+
+
+##
+###
+
+```{r}
+filter_slider("mag","Magnitud",eq,step=0,1,width = 250,column = ~mag)
+filter_select("yr","Seleccione el año",eq,group= ~yr, multiple= FALSE )
+```
+
+
+```{r}
+eq %>%
+  DT::datatable()
+```
+
+###
+
+```{r}
+eq %>%
+  leaflet() %>%
+  addTiles() %>%
+  addMarkers(lng = ~lon,
+             lat = ~lat,
+             label = ~mag)
+```
+
+

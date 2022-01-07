@@ -1,0 +1,36 @@
+---
+title: "Flexdashboard"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+# capa 1 
+
+## fila 1
+### Columna 1.1 {data-width=3}
+### Columna 1.2 {data-width=6}
+
+## fila 2
+### Columna 2.1
+### Columna 2.2
+### Columna 2.3
+
+# capa 2 
+
+## Pestañas {.tabset}
+### tab 1
+### tab 2
+### tab 3
+
+
+
+
+
+
+
+
+
+
+
